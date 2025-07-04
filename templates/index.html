@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rate My Singing - Doraemon Karaoke</title>
+    <link rel="icon" type="image/x-icon" href="/static/microphone.png" />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/styles.css') }}"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <!-- Welcome Screen -->
+      <div id="welcomeScreen" class="welcome-screen">
+        <h1>🎤 Doraemon Karaoke Studio</h1>
+
+        <div class="user-form">
+          <h3 style="margin-bottom: 25px; font-size: 1.5em">
+            Welcome! Let's get to know you
+          </h3>
+
+          <div class="form-group">
+            <label for="userName">Your Name:</label>
+            <input
+              type="text"
+              id="userName"
+              placeholder="Enter your name"
+              maxlength="50"
+            />
+          </div>
+
+          <!--TODO: Use the age and gender information to improve the algorithm-->
+          <div class="form-group">
+            <label for="userAge">Your Age:</label>
+            <input
+              type="number"
+              id="userAge"
+              placeholder="Enter your age"
+              min="5"
+              max="100"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="userGender">Gender:</label>
+            <select id="userGender">
+              <option value="">Select gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+              <option value="prefer-not-to-say">Prefer not to say</option>
+            </select>
+          </div>
+
+          <button onclick="proceedToSongSelection()" class="start-btn">
+            ✨ Let's Sing! ✨
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Karaoke Screen -->
+      <div id="mainScreen" class="main-screen hidden">
+        <h1>🎵 Choose Your Song</h1>
+
+        <div class="song-selection">
+          <h3>Select a song to sing:</h3>
+          <div class="song-grid">
+            <div
+              class="song-card"
+              onclick="selectSong('song1')"
+              data-song="song1"
+            >
+              <div class="song-title">🌟 Ajeeb Dastan Hai Yeh</div>
+              <div class="song-artist">By Lata Mangeshkar</div>
+            </div>
+            <div
+              class="song-card"
+              onclick="selectSong('song2')"
+              data-song="song2"
+            >
+              <div class="song-title">🎈 Finding Her</div>
+              <div class="song-artist">By Kushagra</div>
+            </div>
+            <div
+              class="song-card"
+              onclick="selectSong('song3')"
+              data-song="song3"
+            >
+              <div class="song-title">🌸 COMING SOON</div>
+              <div class="song-artist">BY SOON</div>
+            </div>
+            <div
+              class="song-card"
+              onclick="selectSong('song4')"
+              data-song="song4"
+            >
+              <div class="song-title">🚀 COMING SOON</div>
+              <div class="song-artist">BY SOON</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lyrics Display -->
+        <div class="lyrics-section">
+          <div id="lyricsContainer" class="lyrics-box">
+            🎤 Select a song to see lyrics
+          </div>
+        </div>
+
+        <!-- Audio Controls -->
+        <div class="controls">
+          <button id="startBtn" onclick="startKaraoke()" disabled>
+            🎵 Start Singing!
+          </button>
+          <button id="stopBtn" onclick="stopRecording()" disabled>
+            ⏹️ Stop & Analyze
+          </button>
+        </div>
+
+        <!-- Recording Visualization -->
+        <div id="recordingContainer" class="recording-container">
+          <div class="recording-indicator">🔴 RECORDING - Sing along!</div>
+
+          <div class="recording-time" id="recordingTime">00:00</div>
+
+          <div class="volume-meter">
+            <div class="volume-bar" id="volumeBar"></div>
+          </div>
+
+          <div class="pitch-visualizer" id="pitchVisualizer">
+            <!-- Pitch bars will be added dynamically -->
+          </div>
+
+          <div style="margin-top: 20px; font-size: 1.1em; opacity: 0.9">
+            🎯 Keep singing! The louder and more varied your pitch, the better!
+          </div>
+
+          <div class="debug-info" id="debugInfo">
+            Debug: Waiting for audio data...
+          </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status" class="status"></div>
+
+        <!-- Hidden Audio Element -->
+        <audio id="karaokeAudio" preload="auto">
+          <source src="/static/song1.mp3" type="audio/mpeg" />
+          Your browser does not support the audio element.
+        </audio>
+      </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="resultsModal" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+
+        <h2 style="margin-bottom: 20px">🎉 Your Performance Results!</h2>
+
+        <div class="score-display">
+          <div class="score-number" id="modalScoreNumber">-</div>
+          <div style="font-size: 1.2em; margin-bottom: 15px">out of 10</div>
+        </div>
+
+        <div class="character-container">
+          <img
+            id="modalCharacterImage"
+            src=""
+            alt="Character"
+            class="character-image"
+          />
+          <div id="modalCharacterLabel" class="character-label"></div>
+        </div>
+
+        <div class="score-breakdown" id="modalScoreBreakdown">
+          <!-- Score breakdown will be populated here -->
+        </div>
+
+        <div style="margin: 25px 0">
+          <button onclick="shareToInstagram()" class="share-button">
+            📸 Share to Instagram
+          </button>
+          <button onclick="tryAgain()" class="try-again-button">
+            🎤 Sing Again
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Global variables for visualization
+      let mediaRecorder;
+      let audioChunks = [];
+      let isRecording = false;
+      let selectedSong = null;
+      let userInfo = {};
+      let recordingStartTime = 0;
+      let recordingTimer = null;
+      let audioContext = null;
+      let analyser = null;
+      let pitchBars = [];
+      let parsedLyrics = [];
+      let dataArray = null;
+      let animationId = null;
+
+      // DOM elements
+      const welcomeScreen = document.getElementById("welcomeScreen");
+      const mainScreen = document.getElementById("mainScreen");
+      const startBtn = document.getElementById("startBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const recordingContainer = document.getElementById("recordingContainer");
+      const statusDiv = document.getElementById("status");
+      const karaokeAudio = document.getElementById("karaokeAudio");
+      const lyricsContainer = document.getElementById("lyricsContainer");
+      const resultsModal = document.getElementById("resultsModal");
+      const modalScoreNumber = document.getElementById("modalScoreNumber");
+      const modalCharacterImage = document.getElementById(
+        "modalCharacterImage"
+      );
+      const modalCharacterLabel = document.getElementById(
+        "modalCharacterLabel"
+      );
+      const modalScoreBreakdown = document.getElementById(
+        "modalScoreBreakdown"
+      );
+      const recordingTimeDisplay = document.getElementById("recordingTime");
+      const volumeBar = document.getElementById("volumeBar");
+      const pitchVisualizer = document.getElementById("pitchVisualizer");
+      const debugInfo = document.getElementById("debugInfo"); // Added missing element
+
+      // Song data
+      const songs = {
+        song1: {
+          id: "song1",
+          title: "🌟 Ajeeb Dasta",
+          file: "song1.mp3",
+          lyricsFile: "song1.lrc",
+        },
+        song2: {
+          id: "song2",
+          title: "🎈 Finding Her",
+          file: "song2.mp3",
+          lyricsFile: "song2.lrc",
+        },
+        song3: {
+          id: "song3",
+          title: "🌸 COMING SOON",
+          file: "song3.mp3",
+          lyricsFile: "song3.lrc",
+        },
+        song4: {
+          id: "song4",
+          title: "🚀 COMING SOON",
+          file: "song4.mp3",
+          lyricsFile: "song4.lrc",
+        },
+      };
+
+      // --- User Form and Screen Navigation ---
+      function proceedToSongSelection() {
+        const name = document.getElementById("userName").value.trim();
+        const age = document.getElementById("userAge").value;
+        const gender = document.getElementById("userGender").value;
+
+        if (!name || !age || !gender) {
+          alert("Please fill in all fields to continue!");
+          return;
+        }
+
+        if (age < 5 || age > 100) {
+          alert("Please enter a valid age between 5 and 100!");
+          return;
+        }
+
+        userInfo = { name, age, gender };
+
+        welcomeScreen.classList.add("hidden");
+        mainScreen.classList.remove("hidden");
+
+        setStatus(
+          `Welcome ${name}! Choose a song to start singing 🎵`,
+          "success"
+        );
+      }
+
+      function setStatus(message, type) {
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
+      }
+
+      function updateDebug(message) {
+        if (debugInfo) {
+          debugInfo.textContent = `Debug: ${message}`;
+        }
+      }
+
+      // --- Song Selection ---
+      function selectSong(songId) {
+        document.querySelectorAll(".song-card").forEach((card) => {
+          card.classList.remove("selected");
+        });
+
+        const newSelectedCard = document.querySelector(
+          `[data-song="${songId}"]`
+        );
+        if (newSelectedCard) {
+          newSelectedCard.classList.add("selected");
+        } else {
+          console.warn(`Song card with data-song="${songId}" not found.`);
+        }
+
+        selectedSong = songs[songId];
+        karaokeAudio.src = `/static/${selectedSong.file}`;
+        loadLyrics(selectedSong.lyricsFile);
+        lyricsContainer.textContent = `🎵 Ready to sing "${selectedSong.title}"!`;
+        startBtn.disabled = false;
+
+        setStatus(
+          `Great choice! "${selectedSong.title}" selected. Click "Start Singing!" when ready.`,
+          "success"
+        );
+      }
+
+      // --- LRC Lyrics Parsing and Loading ---
+      function parseLRC(lrcContent) {
+        const lines = lrcContent.split("\n");
+        const lyrics = [];
+        const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g;
+
+        console.log("Parsing LRC content. Total lines:", lines.length);
+        lines.forEach((line, index) => {
+          const trimmedLine = line.trim();
+          console.log(`Processing line ${index}: "${trimmedLine}"`);
+
+          if (trimmedLine === "") {
+            console.log(`Skipping empty line ${index}.`);
+            return;
+          }
+
+          const timeMatches = [...trimmedLine.matchAll(timeRegex)];
+          console.log(`Line ${index} matches:`, timeMatches);
+
+          if (timeMatches.length > 0) {
+            const lyricText = trimmedLine.replace(timeRegex, "").trim();
+            timeMatches.forEach((match) => {
+              const minutes = parseInt(match[1], 10);
+              const seconds = parseInt(match[2], 10);
+              const milliseconds = parseInt(match[3], 10);
+              const timeInSeconds =
+                minutes * 60 +
+                seconds +
+                milliseconds / (match[3].length === 2 ? 100 : 1000);
+              lyrics.push({ time: timeInSeconds, text: lyricText });
+            });
+          }
+        });
+
+        lyrics.sort((a, b) => a.time - b.time);
+        console.log(
+          "Parsed lyrics array (final check, total:",
+          lyrics.length,
+          "):",
+          lyrics.slice(0, 5)
+        );
+        return lyrics;
+      }
+
+      async function loadLyrics(lyricsFileName) {
+        lyricsContainer.textContent = "Loading lyrics...";
+        parsedLyrics = [];
+        try {
+          console.log(
+            `Attempting to fetch lyrics from: /static/${lyricsFileName}`
+          );
+          const response = await fetch(`/static/${lyricsFileName}`);
+          if (!response.ok) {
+            console.error(
+              `Failed to load lyrics: ${response.status} - ${response.statusText} for /static/${lyricsFileName}`
+            );
+            throw new Error(`Failed to load lyrics: ${response.statusText}`);
+          }
+          const lrcContent = await response.text();
+          console.log("Fetched LRC content length:", lrcContent.length);
+          parsedLyrics = parseLRC(lrcContent);
+          console.log(
+            "Lyrics loaded and parsed. Total lines:",
+            parsedLyrics.length
+          );
+          updateLyricsDisplay();
+        } catch (error) {
+          console.error("Error loading LRC file:", error);
+          lyricsContainer.textContent =
+            "Could not load lyrics for this song. Please check console for details.";
+        }
+      }
+
+      // --- Fixed Audio Analysis Setup (from working script) ---
+      async function setupAudioAnalysis(stream) {
+        try {
+          // Close existing audio context
+          if (audioContext && audioContext.state !== "closed") {
+            await audioContext.close();
+          }
+
+          // Cancel any existing animation frame
+          if (animationId) {
+            cancelAnimationFrame(animationId);
+          }
+
+          // Create new audio context
+          audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
+
+          // Resume context if suspended
+          if (audioContext.state === "suspended") {
+            await audioContext.resume();
+          }
+
+          // Create analyser
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 1024; // Increased for better frequency resolution
+          analyser.smoothingTimeConstant = 0.1; // Reduced for more responsive visualization
+          analyser.minDecibels = -90;
+          analyser.maxDecibels = -10;
+
+          // Connect audio stream
+          const source = audioContext.createMediaStreamSource(stream);
+          source.connect(analyser);
+
+          // Create data array
+          const bufferLength = analyser.frequencyBinCount;
+          dataArray = new Uint8Array(bufferLength);
+
+          updateDebug(`Audio context created. Buffer length: ${bufferLength}`);
+
+          // Create pitch bars
+          createPitchBars();
+        } catch (error) {
+          console.error("Audio analysis setup error:", error);
+          updateDebug("Audio setup error: " + error.message);
+          setStatus("⚠️ Audio analysis setup failed", "warning");
+        }
+      }
+
+      // --- Fixed Pitch Bars Creation (from working script) ---
+      function createPitchBars() {
+        if (!pitchVisualizer) return;
+
+        pitchVisualizer.innerHTML = "";
+        pitchBars = [];
+
+        for (let i = 0; i < 40; i++) {
+          const bar = document.createElement("div");
+          bar.className = "pitch-bar";
+          pitchVisualizer.appendChild(bar);
+          pitchBars.push(bar);
+        }
+
+        updateDebug(`Created ${pitchBars.length} pitch bars`);
+      }
+
+      // --- Fixed Visualization Update (from working script) ---
+      function updateVisualization() {
+        if (!isRecording || !analyser || !dataArray) {
+          return;
+        }
+
+        try {
+          // Get frequency data
+          analyser.getByteFrequencyData(dataArray);
+
+          // Calculate volume (RMS)
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i] * dataArray[i];
+          }
+          const rms = Math.sqrt(sum / dataArray.length);
+          const volumePercent = Math.min(100, (rms / 255) * 400); // Amplified for better visibility
+
+          // Update volume bar
+          if (volumeBar) {
+            volumeBar.style.width = `${Math.max(2, volumePercent)}%`;
+          }
+
+          // Update pitch bars
+          const step = Math.floor(dataArray.length / pitchBars.length);
+
+          for (let i = 0; i < pitchBars.length; i++) {
+            const startIndex = i * step;
+            const endIndex = Math.min(startIndex + step, dataArray.length);
+
+            let barValue = 0;
+            for (let j = startIndex; j < endIndex; j++) {
+              barValue += dataArray[j];
+            }
+            barValue = barValue / (endIndex - startIndex);
+
+            // Amplify the visualization
+            const normalizedHeight = Math.max(5, (barValue / 255) * 180 * 2);
+            pitchBars[i].style.height = `${Math.min(180, normalizedHeight)}px`;
+          }
+
+          // Update debug info
+          updateDebug(
+            `Volume: ${volumePercent.toFixed(1)}%, Max freq: ${Math.max(
+              ...dataArray
+            )}`
+          );
+        } catch (error) {
+          console.error("Visualization update error:", error);
+          updateDebug("Visualization error: " + error.message);
+        }
+
+        // Continue animation
+        if (isRecording) {
+          animationId = requestAnimationFrame(updateVisualization);
+        }
+      }
+
+      // --- Fixed Recording Start Function ---
+      async function startRecording() {
+        try {
+          // Request microphone access with optimal settings
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              sampleRate: 44100,
+            },
+          });
+
+          updateDebug("Microphone access granted");
+
+          // Setup audio analysis FIRST
+          await setupAudioAnalysis(stream);
+
+          // Determine supported MIME type
+          let mimeType = "audio/webm;codecs=opus";
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = "audio/webm";
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+              mimeType = "audio/wav";
+              if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = ""; // Let the browser decide
+              }
+            }
+          }
+
+          mediaRecorder = new MediaRecorder(
+            stream,
+            mimeType ? { mimeType } : {}
+          );
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              audioChunks.push(event.data);
+            }
+          };
+
+          mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, {
+              type: mediaRecorder.mimeType,
+            });
+            sendAudioForAnalysis(audioBlob);
+          };
+
+          mediaRecorder.start(1000); // Collect data every second
+          isRecording = true;
+          recordingStartTime = Date.now();
+
+          // Start visualization
+          updateVisualization();
+
+          console.log("Recording started successfully");
+        } catch (error) {
+          console.error("Error starting recording:", error);
+          setStatus("❌ Microphone access denied: " + error.message, "error");
+          updateDebug("Error: " + error.message);
+        }
+      }
+
+      // --- Karaoke Control Functions ---
+      async function startKaraoke() {
+        if (!selectedSong) {
+          setStatus("Please select a song first!", "error");
+          return;
+        }
+
+        try {
+          // Start recording first
+          await startRecording();
+
+          // Then start playing music
+          karaokeAudio.currentTime = 0;
+          await karaokeAudio.play();
+
+          // Update UI
+          startBtn.disabled = true;
+          stopBtn.disabled = false;
+          recordingContainer.style.display = "block";
+
+          // Start recording timer and lyrics sync
+          startRecordingTimer();
+
+          setStatus("🎵 Singing in progress! Have fun!", "success");
+        } catch (error) {
+          setStatus(
+            "❌ Failed to start karaoke. Please try again. " + error.message,
+            "error"
+          );
+          console.error("Start karaoke error:", error);
+        }
+      }
+
+      function startRecordingTimer() {
+        // Clear any existing timer
+        if (recordingTimer) {
+          clearInterval(recordingTimer);
+        }
+
+        recordingTimer = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+          const minutes = Math.floor(elapsed / 60);
+          const seconds = elapsed % 60;
+          recordingTimeDisplay.textContent = `${minutes
+            .toString()
+            .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+        }, 1000);
+
+        // Ensure only one timeupdate listener for lyrics
+        karaokeAudio.removeEventListener("timeupdate", updateLyricsDisplay);
+        karaokeAudio.addEventListener("timeupdate", updateLyricsDisplay);
+      }
+
+      function updateLyricsDisplay() {
+        if (parsedLyrics.length === 0) {
+          lyricsContainer.textContent = "No lyrics available for this song.";
+          return;
+        }
+
+        const currentTime = karaokeAudio.currentTime;
+        let currentLine = "🎶 Singing...";
+
+        // Find the current lyric line
+        for (let i = parsedLyrics.length - 1; i >= 0; i--) {
+          if (currentTime >= parsedLyrics[i].time) {
+            currentLine = parsedLyrics[i].text;
+            break;
+          }
+        }
+
+        // Only update DOM if the lyric text has changed
+        if (lyricsContainer.textContent !== currentLine) {
+          lyricsContainer.textContent = currentLine;
+          lyricsContainer.style.transform = "scale(1.1)";
+          setTimeout(() => {
+            lyricsContainer.style.transform = "scale(1)";
+          }, 300);
+        }
+      }
+
+      function stopRecording() {
+        if (mediaRecorder && isRecording) {
+          isRecording = false; // Set this first to stop visualization
+
+          // Stop animation
+          if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+          }
+
+          mediaRecorder.stop();
+
+          // Stop all tracks
+          if (mediaRecorder.stream) {
+            mediaRecorder.stream.getTracks().forEach((track) => track.stop());
+          }
+
+          // Close audio context
+          if (audioContext && audioContext.state !== "closed") {
+            audioContext.close();
+          }
+
+          // Stop audio playback
+          karaokeAudio.pause();
+
+          // Clear timers and event listeners
+          if (recordingTimer) {
+            clearInterval(recordingTimer);
+            recordingTimer = null;
+          }
+          karaokeAudio.removeEventListener("timeupdate", updateLyricsDisplay);
+
+          // Update UI
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          recordingContainer.style.display = "none";
+
+          // Clear visualizations
+          if (volumeBar) volumeBar.style.width = "0%";
+          if (pitchBars) {
+            pitchBars.forEach((bar) => (bar.style.height = "5px"));
+          }
+
+          setStatus("🔄 Analyzing your amazing performance...", "warning");
+          updateDebug("Recording stopped");
+
+          console.log("Recording stopped successfully");
+        }
+      }
+
+      // --- Audio Analysis Submission ---
+      async function sendAudioForAnalysis(audioBlob) {
+        try {
+          if (audioBlob.size === 0) {
+            throw new Error("Empty audio recording");
+          }
+
+          const formData = new FormData();
+          let filename = "recording.webm";
+          if (audioBlob.type.includes("wav")) {
+            filename = "recording.wav";
+          } else if (audioBlob.type.includes("mp4")) {
+            filename = "recording.mp4";
+          }
+
+          formData.append("audio", audioBlob, filename);
+
+          const response = await fetch("/analyze", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(
+              `Analysis failed: ${response.status} - ${errorText}`
+            );
+          }
+
+          const result = await response.json();
+
+          if (result.error) {
+            setStatus(`Analysis Error: ${result.error}`, "error");
+          } else {
+            displayResults(result);
+          }
+        } catch (error) {
+          setStatus(`Failed to analyze: ${error.message}`, "error");
+          console.error("Audio analysis error:", error);
+        }
+      }
+
+      // --- Results Modal and Sharing ---
+      function displayResults(results) {
+        const score =
+          results.overallScore || Math.floor(Math.random() * 10) + 1;
+        const pitchAccuracy =
+          results.pitchAccuracy || (Math.random() * 100).toFixed(1);
+        const rhythmAccuracy =
+          results.rhythmAccuracy || (Math.random() * 100).toFixed(1);
+        const volumeConsistency =
+          results.volumeConsistency || (Math.random() * 100).toFixed(1);
+        const totalNotes =
+          results.totalNotes || Math.floor(Math.random() * 50) + 20;
+        const correctNotes =
+          results.correctNotes ||
+          Math.floor(totalNotes * (pitchAccuracy / 100));
+
+        let characterImage = "";
+        let characterLabel = "";
+
+        if (score >= 9) {
+          characterImage = "/static/tsubasa.png";
+          characterLabel = "Tsubasa: Fantastic! A true singing star!";
+        } else if (score >= 6) {
+          characterImage = "/static/nobita.png";
+          characterLabel = "Nobita: Great job! Keep practicing!";
+        } else if (score >= 4) {
+          characterImage = "/static/gian.png";
+          characterLabel = "Gian: Let me show you how it's done!";
+        } else {
+          characterImage = "/static/shizuka.png";
+          characterLabel = "Shizuka: Even worse than Gian!";
+        }
+
+        modalScoreNumber.textContent = score;
+        modalCharacterImage.src = characterImage;
+        modalCharacterLabel.textContent = characterLabel;
+
+        modalScoreBreakdown.innerHTML = `
+          <div class="score-item"><strong>Pitch Accuracy:</strong> ${pitchAccuracy}%</div>
+          <div class="score-item"><strong>Rhythm Accuracy:</strong> ${rhythmAccuracy}%</div>
+          <div class="score-item"><strong>Volume Consistency:</strong> ${volumeConsistency}%</div>
+          <div class="score-item"><strong>Notes Hit:</strong> ${correctNotes}/${totalNotes}</div>`;
+
+        resultsModal.style.display = "block";
+        setStatus("Your performance has been analyzed!", "success");
+      }
+
+      function closeModal() {
+        resultsModal.style.display = "none";
+      }
+
+      function shareToInstagram() {
+        const score = modalScoreNumber.textContent;
+        const character = modalCharacterLabel.textContent.split(":")[0];
+        const songTitle = selectedSong ? selectedSong.title : "a song";
+        const userName = userInfo.name;
+
+        const shareText = `Just sang "${songTitle}" on Doraemon Karaoke App and scored ${score}/10! 🎤 Thanks, ${character}! #DoraemonKaraoke #SingingChallenge`;
+
+        alert(
+          `Prepare to share on Instagram! Copy this text: "${shareText}" and upload your screenshot.`
+        );
+        console.log("Simulating Instagram share with text:", shareText);
+      }
+
+      function tryAgain() {
+        closeModal();
+        lyricsContainer.textContent = "🎤 Select a song to see lyrics";
+        selectedSong = null;
+        document.querySelectorAll(".song-card").forEach((card) => {
+          card.classList.remove("selected");
+        });
+        startBtn.disabled = true;
+        setStatus("Ready for your next performance! Choose a song.", "info");
+      }
+
+      // Initialize on page load
+      window.addEventListener("load", () => {
+        updateDebug("Page loaded, ready to start");
+      });
+    </script>
+  </body>
+</html>
